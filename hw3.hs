@@ -24,7 +24,7 @@ pClause = do
 err (Right e) = Right e
 err (Left pe) = Left $ show pe
 
-doStuff :: Clause -> Either String Expr
+doStuff :: Clause -> Either String (Expr Var)
 doStuff clause = do
   e <- err $ parse pExpr "" $ expr  clause
   v <- err $ parse pVar  "" $ var   clause
