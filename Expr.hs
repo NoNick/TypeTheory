@@ -3,6 +3,7 @@ module Expr (Atom (Variable, Abstraction, Brackets),
 
 import Text.Parsec
 import Data.List
+import qualified Data.Set as Set
     
 type Var = String
 data Atom = Variable Var | Abstraction Var Expr | Brackets Expr 
@@ -27,33 +28,38 @@ fv' (Brackets e)      = fv e
 fv' (Variable v)      = [v]
                         
 substitute :: Expr -> Var -> Expr -> Either String Expr
-substitute = subExpr []
+substitute subst = subExpr (Set.fromList $ fv subst) Set.empty subst
 
-subApply :: [String] -> Expr -> Var -> [Atom] -> Either String [Atom]
-subApply dom subst var [] = Right $ []
-subApply dom subst var (a:al) =
-    do a' <- subAtom dom subst var a
-       al'<- subApply dom subst var al
+subApply :: Set.Set String -> Set.Set String -> Expr ->
+            Var -> [Atom] -> Either String [Atom]
+subApply nfv dom subst var [] = Right $ []
+subApply nfv dom subst var (a:al) =
+    do a' <- subAtom nfv dom subst var a
+       al'<- subApply nfv dom subst var al
        return $ a':al'
              
-subExpr :: [String] -> Expr -> Var -> Expr -> Either String Expr
-subExpr dom subst var (Single a) =
-    subAtom dom subst var a >>= (return . Single)
-subExpr dom subst var (Apply al) =
-    subApply dom subst var al >>= (return . Apply)
+subExpr :: Set.Set String -> Set.Set String -> Expr ->
+           Var -> Expr -> Either String Expr
+subExpr nfv dom subst var (Single a) =
+    subAtom nfv dom subst var a >>= (return . Single)
+subExpr nfv dom subst var (Apply al) =
+    subApply nfv dom subst var al >>= (return . Apply)
               
-subAtom :: [String] -> Expr -> Var -> Atom -> Either String Atom
-subAtom dom subst var (Abstraction v expr) =
-    subExpr (v:dom) subst var expr >>= return . (Abstraction v)
+subAtom :: Set.Set String -> Set.Set String -> Expr ->
+           Var -> Atom -> Either String Atom
+subAtom nfv dom subst var (Abstraction v expr) =
+    subExpr nfv (Set.insert v dom) subst var expr >>=
+            return . (Abstraction v)
 
-subAtom dom subst var (Brackets expr) =
-    subExpr dom subst var expr >>= return . Brackets
-subAtom dom subst var (Variable v) =
-    if v == var then let sameVars = intersect dom $ fv subst in
-        if null sameVars then
+subAtom nfv dom subst var (Brackets expr) =
+    subExpr nfv dom subst var expr >>= return . Brackets
+subAtom nfv dom subst var (Variable v) =
+    if v == var then let sameVars = Set.intersection dom nfv in
+        if Set.null sameVars then
             return $ Brackets subst
         else
-            Left $ "No opportunity to insert variable " ++ (head sameVars)
+            Left $ "No opportunity to insert variable " ++
+                     (head $ Set.elems sameVars)
     else
         return $ Variable v
      
