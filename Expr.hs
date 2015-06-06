@@ -27,13 +27,13 @@ show' a = if (head str) == '"' && (last str) == '"' then
               str
               where str = show a
     
-fv  (Expr al)         = concatMap fv' al
-fv' (Abstraction v e) = delete v (fv e)
+fv  (Expr al)         = Set.unions $ map fv' al
+fv' (Abstraction v e) = Set.delete v (fv e)
 fv' (Brackets e)      = fv e
-fv' (Variable v)      = [v]
+fv' (Variable v)      = Set.singleton v
                         
 substitute :: (Ord a, Show a) => Expr a -> a -> Expr a -> Either String (Expr a)
-substitute subst = subExpr (Set.fromList $ fv subst) Set.empty subst
+substitute subst = subExpr (fv subst) Set.empty subst
 
 subApply :: (Ord a, Show a) => Set.Set a -> Set.Set a -> Expr a ->
             a -> [Atom a] -> Either String [Atom a]
