@@ -26,11 +26,10 @@ pAtom =
     
 pExpr :: Parsec String () (Expr Var)
 pExpr =
-    (try pApply >>= (return . Apply)) <|>
-    (pAtom >>= (return . Single))
+    (pApply >>= (return . Expr))
     
 pApply :: Parsec String () [Atom Var]
 pApply = do
     a  <- pAtom
-    as <- many1 $ try $ (many1 $ oneOf " \t\n") >> pAtom
+    as <- many $ try $ (many1 $ oneOf " \t\n") >> pAtom
     return $ a:as

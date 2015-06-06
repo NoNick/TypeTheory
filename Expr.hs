@@ -1,5 +1,5 @@
 module Expr (Atom (Variable, Abstraction, Brackets),
-             Var, Expr (Apply, Single), fv, substitute) where
+             Var, Expr (Expr), fv, substitute) where
 
 import Text.Parsec
 import Data.List
@@ -7,12 +7,12 @@ import qualified Data.Set as Set
     
 type Var = String
 data Atom a = Variable a | Abstraction a (Expr a) | Brackets (Expr a)
-data Expr a = Apply [(Atom a)] | Single (Atom a)
+newtype Expr a = Expr [(Atom a)]
 
 instance Show a => Show (Expr a) where
-    show (Single a) = show a
-    show (Apply al) = openBrackets ++ first ++ " " ++ rest ++ ")"
-            where openBrackets = replicate ((length al) - 1) '('
+    show (Expr (a:[]) ) = show a
+    show (Expr al)      = ob ++ first ++ " " ++ rest ++ ")"
+            where ob = replicate ((length al) - 1) '('
                   first = show $ head al
                   rest = intercalate ") " $ map show $ tail al
 
@@ -27,8 +27,7 @@ show' a = if (head str) == '"' && (last str) == '"' then
               str
               where str = show a
     
-fv (Apply al)         = concatMap fv' al
-fv (Single a)         = fv' a
+fv  (Expr al)         = concatMap fv' al
 fv' (Abstraction v e) = delete v (fv e)
 fv' (Brackets e)      = fv e
 fv' (Variable v)      = [v]
@@ -46,10 +45,8 @@ subApply nfv dom subst var (a:al) =
              
 subExpr :: (Ord a, Show a) => Set.Set a -> Set.Set a -> Expr a ->
            a -> Expr a -> Either String (Expr a)
-subExpr nfv dom subst var (Single a) =
-    subAtom nfv dom subst var a >>= (return . Single)
-subExpr nfv dom subst var (Apply al) =
-    subApply nfv dom subst var al >>= (return . Apply)
+subExpr nfv dom subst var (Expr al) =
+    subApply nfv dom subst var al >>= (return . Expr)
               
 subAtom :: (Ord a, Show a) => Set.Set a -> Set.Set a -> Expr a ->
            a -> Atom a -> Either String (Atom a)
