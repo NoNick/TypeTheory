@@ -11,7 +11,7 @@ pVar = do
     xs <- many $ oneOf $ '\'':['a' .. 'z'] ++ ['0' .. '9']
     return $ x:xs
 
-pAtom :: Parsec String () (Atom Var)
+pAtom :: Parsec String () (Expr Var)
 pAtom =
     try (pSpace >> pVar >>= (return . Variable)) <|>
     try (do pSpace >> char '\\' >> pSpace
@@ -22,14 +22,10 @@ pAtom =
     (do pSpace >> char '(' >> pSpace
         l <- pExpr
         pSpace >> char ')'
-        return $ Brackets l)
+        return l)
     
 pExpr :: Parsec String () (Expr Var)
-pExpr =
-    (pApply >>= (return . Expr))
-    
-pApply :: Parsec String () [Atom Var]
-pApply = do
+pExpr = do
     a  <- pAtom
     as <- many $ try $ (many1 $ oneOf " \t\n") >> pAtom
-    return $ a:as
+    return $ Apply (a:as)
