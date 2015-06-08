@@ -1,4 +1,4 @@
-module DeBrujin (DeVar, toDe, fromDe, deReduce) where
+module DeBrujin (DeVar, toDe, fromDe, deReduce, deSubst, deFV) where
 
 import Expr
 import Data.Char
@@ -19,7 +19,7 @@ varList    =  varList' "a"
 deFV :: Expr DeVar -> [DeVar]
 deFV (Apply al)        = nub $ filter (>= 0) $ concatMap deFV al
 deFV (Variable v)      = [v]
-deFV (Abstraction _ e) = map pred $ deFV e
+deFV (Abstraction _ e) = filter (>= 0) $ map pred $ deFV e
                           
 fvMap :: Expr Var -> Map.Map Var DeVar
 fvMap expr = Map.fromList $ zip (Set.toList $ fv expr) [0, 1 ..]
@@ -27,42 +27,34 @@ fvMap' :: Expr DeVar -> Map.Map DeVar Var
 fvMap' expr = Map.fromList $ zip (deFV expr) varList
 
 toDe :: Expr Var -> Expr DeVar
-toDe e = toDe' e 0 (fvMap e) Map.empty
+toDe e = toDe' 0 (fvMap e) Map.empty e
              
--- args: source application, depth, map of FV variables, map of DOM variables
-toDe' :: Expr Var -> Int -> Map.Map Var DeVar -> Map.Map Var DeVar -> Expr DeVar
-toDe' (Apply []) d fv dom     = Apply []
-toDe' (Apply (a:al)) d fv dom = Apply (a':al')
-    where a'        = toDe' a d fv dom
-          -- apply conversion always returns apply
-          Apply al' = toDe' (Apply al) d fv dom 
-
-toDe' (Variable v) d fv dom = case Map.lookup v dom of
+-- args: depth, map of FV variables, map of DOM variables, source application
+toDe' :: Int -> Map.Map Var DeVar -> Map.Map Var DeVar -> Expr Var -> Expr DeVar
+toDe' d fv dom (Apply al) = Apply $ map (toDe' d fv dom) al
+toDe' d fv dom (Variable v) = case Map.lookup v dom of
                                 Just i -> Variable i
                                 Nothing -> case Map.lookup v fv of
                                              Just i -> Variable $ i + d
                                              Nothing -> Variable (-1)
-toDe' (Abstraction v e) d fv dom = Abstraction 0 e'
+toDe' d fv dom (Abstraction v e) = Abstraction 0 e'
     where dom' = Map.insert v 0 $ Map.map succ dom
-          e' = toDe' e (succ d) fv dom'
+          e' = toDe' (succ d) fv dom' e
                                             
 fromDe :: Expr DeVar -> Expr Var
-fromDe e = fromDe' e 0 (varList !! fvLen) (fvMap' e) Map.empty
+fromDe e = fromDe' 0 (varList !! fvLen) (fvMap' e) Map.empty e
     where fvLen = length $ deFV $ e
            
--- args: source expression, depth, last name, map of variables
-fromDe' :: Expr DeVar -> Int -> Var -> Map.Map DeVar Var -> Map.Map DeVar Var -> Expr Var
-fromDe' (Apply []) d l fv dom     = Apply []           
-fromDe' (Apply (a:al)) d l fv dom = Apply (a':al')
-    where a'        = fromDe' a d l fv dom
-          Apply al' = fromDe' (Apply al) d l fv dom
-fromDe' (Variable v) d l fv dom = case Map.lookup v fv of
+-- args: depth, last name, map of variables, source expression
+fromDe' :: Int -> Var -> Map.Map DeVar Var -> Map.Map DeVar Var -> Expr DeVar -> Expr Var
+fromDe' d l fv dom (Apply al) = Apply $ map (fromDe' d l fv dom) al
+fromDe' d l fv dom (Variable v) = case Map.lookup v fv of
                                     Just str -> Variable str
                                     Nothing -> case Map.lookup v dom of
                                                  Just str -> Variable str
                                                  Nothing -> Variable "-1"
-fromDe' (Abstraction v e) d l fv dom = Abstraction l e'
-    where e' =  fromDe' e (succ d) (succVar l) fv' dom'
+fromDe' d l fv dom (Abstraction v e) = Abstraction l e'
+    where e' =  fromDe' (succ d) (succVar l) fv' dom' e
           dom' = Map.insert 0 l $ Map.mapKeys succ dom
           fv' = Map.mapKeys succ fv
                  
@@ -92,11 +84,15 @@ deSubst v v' (Abstraction var e) = if (succ v) == var then e''
 --deNormalize (Abstraction v e) = Abstraction v $ deNormalize e
                              
 deReduce :: Expr DeVar -> Expr DeVar
+deReduce (Apply [])        = Apply []
 deReduce (Apply (a:[]))    = deReduce a
+deReduce (Apply (a:b:[]))  = case deReduce a of
+                              Abstraction v e -> deReduce $ (deSubst 0 b e)
+                              a' -> Apply (a':[deReduce b])
 deReduce (Apply (a:al))    = case deReduce a of
-                              Abstraction v e -> deReduce $ deSubst 0 (Apply al) e 
+                              Abstraction v e -> deReduce $ Apply $ (deSubst 0 (head al) e):(tail al)
                               a' -> case deReduce $ Apply al of
-                                      Apply al' -> Apply $ a':al'
-                                      smth      -> Apply $ a':[smth]
+                                      (Apply al') -> Apply (a':al')
+                                      smth          -> Apply (a':[smth])
 deReduce (Variable var)    = Variable var
 deReduce (Abstraction v e) = Abstraction v $ deReduce e
