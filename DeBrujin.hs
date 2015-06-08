@@ -1,4 +1,4 @@
-module DeBrujin (DeVar, toDe, fromDe, deReduce, deSubst, deFV) where
+module DeBrujin (DeVar, toDe, fromDe, deReduce) where
 
 import Expr
 import Data.Char
@@ -77,12 +77,6 @@ deSubst v v' (Abstraction var e) = if (succ v) == var then e''
                                      where e' = deSubst (succ v) (deShift succ 0 v') e
                                            e'' = deSubst (succ v) v' e
 
---deNormalize :: Expr DeVar -> Expr DeVar
---deNormalize (Variable var)    = Variable var               
---deNormalize (Apply (a:[]))    = deNormalize a
---deNormalize (Apply al)        = Apply $ map deNormalize al
---deNormalize (Abstraction v e) = Abstraction v $ deNormalize e
-                             
 deReduce :: Expr DeVar -> Expr DeVar
 deReduce (Apply [])        = Apply []
 deReduce (Apply (a:[]))    = deReduce a
