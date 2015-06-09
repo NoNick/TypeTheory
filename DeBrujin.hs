@@ -1,4 +1,5 @@
-module DeBrujin (DeVar, toDe, fromDe, deReduce) where
+module DeBrujin (DeVar, toDe, fromDe, deReduce,
+                 succVar, varList) where
 
 import Expr
 import Data.Char
