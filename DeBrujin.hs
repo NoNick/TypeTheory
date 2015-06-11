@@ -81,13 +81,8 @@ deSubst v v' (Abstraction var e) = if (succ v) == var then e''
 deReduce :: Expr DeVar -> Expr DeVar
 deReduce (Apply [])        = Apply []
 deReduce (Apply (a:[]))    = deReduce a
-deReduce (Apply (a:b:[]))  = case deReduce a of
-                              Abstraction v e -> deReduce $ (deSubst 0 b e)
-                              a' -> Apply (a':[deReduce b])
-deReduce (Apply (a:al))    = case deReduce a of
-                              Abstraction v e -> deReduce $ Apply $ (deSubst 0 (head al) e):(tail al)
-                              a' -> case deReduce $ Apply al of
-                                      (Apply al') -> Apply (a':al')
-                                      smth          -> Apply (a':[smth])
+deReduce (Apply (a:b:al))  = case deReduce a of
+                              Abstraction v e -> deReduce $ Apply $ (deSubst 0 b e):al
+                              a' -> Apply $ a':(map deReduce (b:al))
 deReduce (Variable var)    = Variable var
 deReduce (Abstraction v e) = Abstraction v $ deReduce e
